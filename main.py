@@ -6,18 +6,27 @@ from os import mkdir
 import json
 
 class clock():
-    pay = 0.0  # This stores your earned pay
-    worked_time = 0.0  # This records how long you've worked
-    rate = 8.00  # This is your pay per hour, edit it to match your rate
-    data = {}  # This holds total pay data; will contain data from previous days
+    pay = 0.0  # This should be in dollars, properly rounded
+    worked_time = 0.0
+    rate = 8.00
+    data = {}  # This holds total pay data
+    livable_rate = 16.41  # find the min livable rate for your state with livingwage.mit.edu/
+    livable_pay = 0
     
     
     def __init__(self):
+        # Calculate how bad/good your pay is
+        if self.rate > 11.03:
+            print(f'Amount above minimum livable wage: {(self.rate / self.livable_rate):.02f}X')
+        else:
+            print(f'Percent below minimum livable wage: {100 - ((self.rate / self.livable_rate) * 100):.02f}%')
+        
         # This will determine the start time
-        self.start_time = datetime.now()  # This grabs the current time 
+        self.start_time = datetime.now()
         self.shutdown = False  # end program if true
         self.load_data()  # Collect data from previous session
-        self.current_time = self.start_time  # Set the current time to the start time; it will update as we go
+        self.current_time = self.start_time  # We just started
+        print(f'Rate: ${self.rate:.02f}/hour')
         
         
     def get_time_passed(self):
@@ -58,10 +67,11 @@ class clock():
         
         # 1. Determine how much money made per second
         persec = (self.rate / 60) / 60  # rate divided by 60 minutes, then by 60 sec
+        persec_live = (self.livable_rate / 60) / 60
         
         # 2. Calculate current cash based on time worked
         self.pay = (persec * passed)
-        
+        self.livable_pay = (persec_live * passed)
         
         
     def load_data(self):
@@ -75,7 +85,6 @@ class clock():
                 
         elif not path.exists('data'):
             mkdir('data')
-        
         
         
     def save_data(self, error=False):
@@ -99,6 +108,30 @@ class clock():
                 file.write(json.dumps(data))
         
         
+    def can_buy(self):
+        """
+        Thresholds that show what you can buy; 18 gallon
+        """
+        # Lists with items according to pay
+        items = {'6.49':'a classic pepperoni pizza from Little Caesars', 
+                 '56.12': 'a full tank of gas in September 2022', 
+                 '6.99': 'a regular sandwich from JJs',
+                 '60.00': 'a new video game',
+                 '4.99': 'a 40 pack of water bottles'}  # The key is the cost, the value is the item
+        
+        try:
+            can_get = items[f'{self.pay:.02f}']
+            print(f'\rYou can now buy {can_get} for {self.pay:.02f}')
+        
+        except KeyError:
+            return  # You can't buy anything
+        
+        except Exception as e:  # Something weird happened, don't know why
+            print(f'Error: {str(e)}')
+            self.save_data(error=True)
+            exit(1)
+        
+        
     def start(self):
         """
         This starts the main loop that keeps track of time
@@ -113,7 +146,10 @@ class clock():
                 self.update_pay(worked)
 
                 # Print data
-                print(f'\r{self.worked_time / 60:.02f} minutes worked for a pay of ${self.pay:.02f}', end='')
+                self.can_buy()
+                
+                print(f'\r{self.worked_time / 60:.02f} minutes worked for a pay of ${self.pay:.02f}' +
+                      f' | livable: ${self.livable_pay:.02f}', end='')
 
                 sleep(1)
                 
@@ -127,8 +163,7 @@ class clock():
             self.save_data(error=True)
             exit(1)
             
-            
-            
+                       
 if __name__ == '__main__':
     timer = clock()
     timer.start()
